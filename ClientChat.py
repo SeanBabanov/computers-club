@@ -1,30 +1,15 @@
 import socket
-import threading
 
-def receive_message(client_socket):
-    while True:
-        message = client_socket.recv(1024).decode()
-        if not message:
-            break
-        print("Server:", message)
-    client_socket.close()
-
-def main():
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    SERVER_HOST = 'localhost'
-    PORT = 12345
-    client_socket.connect((SERVER_HOST, PORT))
-
-    receive_thread = threading.Thread(target=receive_message, args=(client_socket,))
-    receive_thread.start()
-
-    while True:
-        message = input("You: ")
-        client_socket.sendall(message.encode())
-
-        if message.lower() == 'exit':
-            break
-    client_socket.close()
+def connect_server(host='localhost', port=12345):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((host, port))
+        while True:
+            message = input("Enter message, to exit enter 'exit': ")
+            if message == 'exit':
+                break
+            s.sendall(message.encode())
+            data = s.recv(1024)
+            print(f"Server: {data.decode()}")
 
 if __name__ == "__main__":
-    main()
+    connect_server()
