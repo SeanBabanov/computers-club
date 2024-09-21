@@ -1,27 +1,37 @@
 import socket
 import ssl
+import os
+import mysql.connector
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 
-def create_ssl_server_socket(certfile, keyfile, host='0.0.0.0', port=8443):
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(certfile=certfile, keyfile=keyfile)
-    
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((host, port))
-    server_socket.listen(5)
-    return server_socket, context
+def generate_aes_key():
+    return os.urandom(16)
 
-def handle_client(ssl_socket):
-    data = ssl_socket.recv(1024).decode('utf-8')
-    ssl_socket.send("Hello, secure client".encode('utf-8'))
+def save_key_to_db(secret_key):
+    connection = mysql.connector.connect(
+        host='localhost',
+        user='your_user',
+        password='your_password',
+        database='encrypted_files_db'
+    )
+    cursor = connection.cursor()
+    cursor.execute("INSERT INTO keys (secret_key) VALUES (%s)", (secret_key,))
+    connection.commit()
+    cursor.close()
+    connection.close()
 
-def run_ssl_server(certfile, keyfile, host='0.0.0.0', port=8443):
-    server_socket, context = create_ssl_server_socket(certfile, keyfile, host, port)
-    print("Waiting for clients...")
+context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+context.load_cert_chain(certfile='server.crt', keyfile='server.key')
 
-    while True:
-        client_socket, addr = server_socket.accept()
-        with context.wrap_socket(client_socket, server_side=True) as ssl_socket:
-            handle_client(ssl_socket)
-        client_socket.close()
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.bind(('localhost', 9999))
+server_socket.listen(5)
+secure_socket = context.wrap_socket(server_socket, server_side=True)
 
-run_ssl_server("server.crt", "server.key")
+while True:
+    client_socket, addr = secure_socket.accept()
+    secret_key = generate_aes_key()
+    save_key_to_db(secret_key)
+    client_socket.send(secret_key)
+    client_socket.close()
